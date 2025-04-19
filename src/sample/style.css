@@ -1,0 +1,29 @@
+#root {
+    -fx-background-color: #f4f4f4;
+    -fx-padding: 10;
+}
+
+#label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+#red {
+    -fx-background-color: #ff4d4d;
+    -fx-text-fill: white;
+}
+
+#yellow {
+    -fx-background-color: #ffc107;
+    -fx-text-fill: black;
+}
+
+#coral {
+    -fx-background-color: coral;
+    -fx-text-fill: white;
+}
+
+#khaki {
+    -fx-background-color: khaki;
+    -fx-text-fill: black;
+}
