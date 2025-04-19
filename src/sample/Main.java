@@ -237,7 +237,7 @@ public class Main extends Application {
         isWin = true;
         stopTimer();  // Stop the timer when the player wins
         Stage winStage = new Stage();
-        VBox box = createDialogBox("🎉 You Win With in " + elapsedTime + "s!" , "Next Level", "yellow", () -> {
+        VBox box = createDialogBox(" You Win With in " + elapsedTime + "s!" , "Next Level", "yellow", () -> {
             winStage.close();
             levelIndex = (levelIndex + 1) % configurations.length;
             loadLevel();
