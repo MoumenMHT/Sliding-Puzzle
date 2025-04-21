@@ -15,6 +15,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -24,6 +25,7 @@ public class Main extends Application {
     private static final int GRID_SIZE = 3;
     private static final int TILE_SIZE = 80;
     private static final int MAX_MOVES = 50;
+    private static final String SAVE_FILE = "game_save.dat";
 
     private static int levelIndex = 0;
     private static boolean isWin = false;
@@ -53,7 +55,8 @@ public class Main extends Application {
     private int movesCount = 0;
     private int score = 0;
     private int bestScore = 0;
-    private String currentConfig = "";
+    private String currentConfig = configurations[0]; // Current board state
+    private String initialConfig = configurations[0]; // Initial level configuration
     private Timeline timer;
     private int elapsedTime = 0;
 
@@ -72,12 +75,71 @@ public class Main extends Application {
         gameScene = new Scene(root, 450, 580);
         gameScene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
 
+        // Load saved game state if available
+        loadGameState();
+
         Scene startMenuScene = createStartMenu();
 
         primaryStage.setTitle("Sliding Puzzle Game");
         primaryStage.setResizable(false);
         primaryStage.setScene(startMenuScene);
+        primaryStage.setOnCloseRequest(e -> saveGameState());
         primaryStage.show();
+    }
+
+    // Serializable class to hold game state
+    private static class GameState implements Serializable {
+        private static final long serialVersionUID = 1L;
+        String currentConfig;
+        String initialConfig;
+        int levelIndex;
+        int score;
+        int movesCount;
+        int elapsedTime;
+        int bestScore;
+
+        GameState(String currentConfig, String initialConfig, int levelIndex, int score, int movesCount, int elapsedTime, int bestScore) {
+            this.currentConfig = currentConfig;
+            this.initialConfig = initialConfig;
+            this.levelIndex = levelIndex;
+            this.score = score;
+            this.movesCount = movesCount;
+            this.elapsedTime = elapsedTime;
+            this.bestScore = bestScore;
+        }
+    }
+
+    private void saveGameState() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(SAVE_FILE))) {
+            GameState state = new GameState(currentConfig, initialConfig, levelIndex, score, movesCount, elapsedTime, bestScore);
+            oos.writeObject(state);
+        } catch (IOException e) {
+            System.err.println("Error saving game state: " + e.getMessage());
+        }
+    }
+
+    private void loadGameState() {
+        File saveFile = new File(SAVE_FILE);
+        if (saveFile.exists()) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(saveFile))) {
+                GameState state = (GameState) ois.readObject();
+                // Validate configurations
+                if (state.currentConfig != null && state.currentConfig.length() == GRID_SIZE * GRID_SIZE &&
+                    state.initialConfig != null && state.initialConfig.length() == GRID_SIZE * GRID_SIZE) {
+                    currentConfig = state.currentConfig;
+                    initialConfig = state.initialConfig;
+                    levelIndex = state.levelIndex;
+                    score = state.score;
+                    movesCount = state.movesCount;
+                    elapsedTime = state.elapsedTime;
+                    bestScore = state.bestScore;
+                    lblScore.setText("Score: " + score);
+                    lblBestScore.setText("Best: " + bestScore);
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                System.err.println("Error loading game state: " + e.getMessage());
+            }
+        }
     }
 
     private Scene createStartMenu() {
@@ -94,9 +156,24 @@ public class Main extends Application {
         btnStart.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
         btnStart.setOnAction(e -> {
             levelIndex = 0;
+            initialConfig = configurations[levelIndex];
+            currentConfig = initialConfig;
+            score = 0;
+            movesCount = 0;
+            elapsedTime = 0;
+            saveGameState();
             primaryStage.setScene(gameScene);
             loadLevel();
         });
+
+        Button btnContinue = new Button("Continue");
+        btnContinue.setPrefWidth(200);
+        btnContinue.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
+        btnContinue.setOnAction(e -> {
+            primaryStage.setScene(gameScene);
+            loadLevel();
+        });
+        btnContinue.setDisable(!new File(SAVE_FILE).exists() || currentConfig == null || currentConfig.length() != GRID_SIZE * GRID_SIZE);
 
         Button btnSelectLevel = new Button("Select Level");
         btnSelectLevel.setPrefWidth(200);
@@ -122,6 +199,12 @@ public class Main extends Application {
             btnConfirm.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
             btnConfirm.setOnAction(e2 -> {
                 levelIndex = levelSelector.getSelectionModel().getSelectedIndex();
+                initialConfig = configurations[levelIndex];
+                currentConfig = initialConfig;
+                score = 0;
+                movesCount = 0;
+                elapsedTime = 0;
+                saveGameState();
                 primaryStage.setScene(gameScene);
                 loadLevel();
             });
@@ -138,9 +221,12 @@ public class Main extends Application {
         Button btnExit = new Button("Exit");
         btnExit.setPrefWidth(200);
         btnExit.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 5;");
-        btnExit.setOnAction(e -> primaryStage.close());
+        btnExit.setOnAction(e -> {
+            saveGameState();
+            primaryStage.close();
+        });
 
-        VBox menuBox = new VBox(20, title, btnStart, btnSelectLevel, btnExit);
+        VBox menuBox = new VBox(20, title, btnStart, btnContinue, btnSelectLevel, btnExit);
         menuBox.setAlignment(Pos.CENTER);
         menuPane.getChildren().add(menuBox);
 
@@ -153,29 +239,15 @@ public class Main extends Application {
         Button btnRandomLevel = new Button("Random Level");
         Button btnPause = new Button("| |");
         Button btnMenu = new Button("Menu");
-        ComboBox<String> levelSelector = new ComboBox<>();
 
         double buttonWidth = 180;
         btnNewGame.setPrefWidth(buttonWidth);
         btnRestart.setPrefWidth(buttonWidth);
         btnRandomLevel.setPrefWidth(buttonWidth);
-        levelSelector.setPrefWidth(buttonWidth);
         btnPause.setPrefSize(40, 40);
         btnMenu.setPrefWidth(buttonWidth);
 
-        for (int i = 0; i < configurations.length; i++) {
-            levelSelector.getItems().add("Level " + (i + 1));
-        }
-        levelSelector.setValue("Level " + (levelIndex + 1));
-        levelSelector.setOnAction(e -> {
-            if (overlay != null && root.getCenter() == overlay) {
-                removeOverlay();
-            }
-            if (!isWin && !isPaused) {
-                levelIndex = levelSelector.getSelectionModel().getSelectedIndex();
-                loadLevel();
-            }
-        });
+
 
         btnNewGame.setOnAction(e -> {
             if (overlay != null && root.getCenter() == overlay) {
@@ -183,18 +255,27 @@ public class Main extends Application {
             }
             if (!isWin && !isPaused) {
                 levelIndex = (levelIndex + 1) % configurations.length;
-                levelSelector.setValue("Level " + (levelIndex + 1));
+                initialConfig = configurations[levelIndex];
+                currentConfig = initialConfig;
+                score = 0;
+                movesCount = 0;
+                elapsedTime = 0;
+                saveGameState();
                 loadLevel();
             }
         });
 
         btnRestart.setOnAction(e -> {
-            if (overlay != null && root.getCenter() == overlay) {
-                removeOverlay();
-            }
-            if (!isWin && !isPaused) {
-                applyConfiguration(currentConfig);
-            }
+            removeOverlay(); // Always clear overlay
+            isWin = false;
+            isPaused = false;
+            movesCount = 0;
+            elapsedTime = 0;
+            currentConfig = initialConfig; // Reset to initial level configuration
+            enableControlButtons(); // Ensure controls are enabled
+            enableTiles(); // Ensure tiles are interactive
+            saveGameState();
+            loadLevel();
         });
 
         btnRandomLevel.setOnAction(e -> {
@@ -202,9 +283,13 @@ public class Main extends Application {
                 removeOverlay();
             }
             if (!isWin && !isPaused) {
-                currentConfig = generateRandomConfiguration();
+                initialConfig = generateRandomConfiguration();
+                currentConfig = initialConfig;
                 levelIndex = -1;
-                levelSelector.setValue("Custom Level");
+                score = 0;
+                movesCount = 0;
+                elapsedTime = 0;
+                saveGameState();
                 loadLevel();
             }
         });
@@ -216,6 +301,7 @@ public class Main extends Application {
                 if (isPaused) {
                     stopTimer();
                     disableTiles();
+                    saveGameState();
                 } else {
                     startTimer();
                     enableTiles();
@@ -227,10 +313,11 @@ public class Main extends Application {
             if (overlay != null && root.getCenter() == overlay) {
                 removeOverlay();
             }
+            saveGameState();
             primaryStage.setScene(createStartMenu());
         });
 
-        VBox centerControls = new VBox(10, btnNewGame, btnRestart, btnRandomLevel, levelSelector, btnMenu);
+        VBox centerControls = new VBox(10, btnNewGame, btnRestart, btnRandomLevel, btnMenu);
         centerControls.setAlignment(Pos.CENTER);
         centerControls.setPadding(new Insets(10));
 
@@ -346,29 +433,28 @@ public class Main extends Application {
     private void loadLevel() {
         isWin = false;
         isPaused = false;
-        movesCount = 0;
-        currentConfig = levelIndex >= 0 ? configurations[levelIndex] : currentConfig;
 
-        lblLevel.setText(levelIndex >= 0 ? "Level: " + (levelIndex + 1) : "Level: Custom");
-        lblMoves.setText("Moves: 0");
+        lblLevel.setText(levelIndex >= 0 ? "Level: " + (levelIndex + 1) : "Level: Random");
+        lblMoves.setText("Moves: " + movesCount);
         lblScore.setText("Score: " + score);
         lblBestScore.setText("Best: " + bestScore);
-        lblMovesLeft.setText("Moves Left: " + MAX_MOVES);
+        lblMovesLeft.setText("Moves Left: " + (MAX_MOVES - movesCount));
+        lblTime.setText("Time: " + elapsedTime + "s");
 
         stopTimer();
         removeOverlay();
         applyConfiguration(currentConfig);
-        startTimer();
+        enableTiles(); // Ensure tiles are enabled
+        enableControlButtons(); // Ensure controls are enabled
+        if (!isPaused && !isWin) {
+            startTimer();
+        }
     }
 
     private void applyConfiguration(String config) {
-        movesCount = 0;
-        lblMoves.setText("Moves: 0");
-        lblMovesLeft.setText("Moves Left: " + MAX_MOVES);
-
-        stopTimer();
-        elapsedTime = 0;
-        lblTime.setText("Time: 0s");
+        lblMoves.setText("Moves: " + movesCount);
+        lblMovesLeft.setText("Moves Left: " + (MAX_MOVES - movesCount));
+        lblTime.setText("Time: " + elapsedTime + "s");
 
         for (int i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
             int row = i / GRID_SIZE;
@@ -384,7 +470,6 @@ public class Main extends Application {
                 tile.setId("tile");
             }
         }
-        startTimer();
     }
 
     private String generateRandomConfiguration() {
@@ -475,7 +560,7 @@ public class Main extends Application {
             from.setId("empty-tile");
 
             movesCount++;
-            score = Math.max(0, score - 10); // Deduct 10 points per move
+            score += 10; // Increase score by 10 per move
             lblMoves.setText("Moves: " + movesCount);
             lblMovesLeft.setText("Moves Left: " + (MAX_MOVES - movesCount));
             lblScore.setText("Score: " + score);
@@ -483,6 +568,17 @@ public class Main extends Application {
                 bestScore = score;
                 lblBestScore.setText("Best: " + bestScore);
             }
+
+            // Update currentConfig to reflect the new board state
+            StringBuilder newConfig = new StringBuilder();
+            for (int i = 0; i < GRID_SIZE; i++) {
+                for (int j = 0; j < GRID_SIZE; j++) {
+                    String text = tiles[i][j].getText();
+                    newConfig.append(text.isEmpty() ? '0' : text.charAt(0));
+                }
+            }
+            currentConfig = newConfig.toString();
+            saveGameState();
 
             if (checkWin()) showWinDialog();
             else if (movesCount >= MAX_MOVES) showLoseDialog();
@@ -523,6 +619,7 @@ public class Main extends Application {
             bestScore = score;
             lblBestScore.setText("Best: " + bestScore);
         }
+        saveGameState();
 
         overlay = createOverlay(
                 "\uD83C\uDFC6 You Win in " + elapsedTime + "s!\nScore: " + (baseScore + timeBonus),
@@ -531,6 +628,12 @@ public class Main extends Application {
                 () -> {
                     removeOverlay();
                     levelIndex = (levelIndex + 1) % configurations.length;
+                    initialConfig = configurations[levelIndex];
+                    currentConfig = initialConfig;
+                    score = 0;
+                    movesCount = 0;
+                    elapsedTime = 0;
+                    saveGameState();
                     loadLevel();
                 }
         );
@@ -549,6 +652,7 @@ public class Main extends Application {
             bestScore = score;
             lblBestScore.setText("Best: " + bestScore);
         }
+        saveGameState();
 
         overlay = createOverlay(
                 "\uD83D\uDC80 Game Over!",
@@ -556,7 +660,12 @@ public class Main extends Application {
                 "btn-retry",
                 () -> {
                     removeOverlay();
-                    applyConfiguration(currentConfig);
+                    score = 0;
+                    movesCount = 0;
+                    elapsedTime = 0;
+                    currentConfig = initialConfig; // Reset to initial level configuration
+                    saveGameState();
+                    loadLevel();
                 }
         );
         BorderPane.setAlignment(overlay, Pos.CENTER);
@@ -597,8 +706,7 @@ public class Main extends Application {
 
     private void startTimer() {
         stopTimer();
-        elapsedTime = 0;
-        lblTime.setText("Time: 0s");
+        lblTime.setText("Time: " + elapsedTime + "s");
         timer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
             elapsedTime++;
             lblTime.setText("Time: " + elapsedTime + "s");
