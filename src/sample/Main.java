@@ -45,7 +45,7 @@ public class Main extends Application {
     private StackPane puzzleGridPane;
     private Scene gameScene;
     private Stage primaryStage;
-    private BorderPane topControls;
+    private HBox topControls; // Changed from BorderPane to HBox
 
     private final String[] configurations = {
             "123864705", "073214568", "124857063", "204153876",
@@ -72,7 +72,7 @@ public class Main extends Application {
         root.setCenter(createPuzzleGrid());
         root.setBottom(createStatsPanel());
 
-        gameScene = new Scene(root, 450, 580);
+        gameScene = new Scene(root, 600, 580);
         gameScene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
 
         // Load saved game state if available
@@ -151,6 +151,9 @@ public class Main extends Application {
         title.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 36px; -fx-text-fill: white; -fx-font-weight: bold;");
         title.setEffect(new DropShadow(5, Color.gray(0.4)));
 
+        Label bestScoreLabel = new Label("Best Score: " + bestScore);
+        bestScoreLabel.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 20px; -fx-text-fill: white;");
+
         Button btnStart = new Button("Start Game");
         btnStart.setPrefWidth(200);
         btnStart.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
@@ -158,7 +161,7 @@ public class Main extends Application {
             levelIndex = 0;
             initialConfig = configurations[levelIndex];
             currentConfig = initialConfig;
-            score = 0;
+            score = 0; // Reset score for new game
             movesCount = 0;
             elapsedTime = 0;
             saveGameState();
@@ -201,7 +204,7 @@ public class Main extends Application {
                 levelIndex = levelSelector.getSelectionModel().getSelectedIndex();
                 initialConfig = configurations[levelIndex];
                 currentConfig = initialConfig;
-                score = 0;
+                score = 0; // Reset score for new level selection
                 movesCount = 0;
                 elapsedTime = 0;
                 saveGameState();
@@ -226,28 +229,34 @@ public class Main extends Application {
             primaryStage.close();
         });
 
-        VBox menuBox = new VBox(20, title, btnStart, btnContinue, btnSelectLevel, btnExit);
+        VBox menuBox = new VBox(20, title, bestScoreLabel, btnStart, btnContinue, btnSelectLevel, btnExit);
         menuBox.setAlignment(Pos.CENTER);
         menuPane.getChildren().add(menuBox);
 
         return new Scene(menuPane, 450, 580);
     }
 
-    private BorderPane createTopControls() {
+    private HBox createTopControls() {
+        Button btnPause = new Button("| |");
         Button btnNewGame = new Button("New Game");
         Button btnRestart = new Button("Restart");
         Button btnRandomLevel = new Button("Random Level");
-        Button btnPause = new Button("| |");
         Button btnMenu = new Button("Menu");
 
-        double buttonWidth = 180;
-        btnNewGame.setPrefWidth(buttonWidth);
-        btnRestart.setPrefWidth(buttonWidth);
-        btnRandomLevel.setPrefWidth(buttonWidth);
-        btnPause.setPrefSize(40, 40);
-        btnMenu.setPrefWidth(buttonWidth);
+        // Set smaller button sizes to fit all in one line
+        btnPause.setPrefSize(40, 30);
+        btnNewGame.setPrefSize(120, 30);
+        btnRestart.setPrefSize(80, 30);
+        btnRandomLevel.setPrefSize(120, 30);
+        btnMenu.setPrefSize(80, 30);
 
-
+        // Apply consistent styling
+        String buttonStyle = "-fx-font-family: 'Arial'; -fx-font-size: 12px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;";
+        btnPause.setStyle(buttonStyle);
+        btnNewGame.setStyle(buttonStyle);
+        btnRestart.setStyle(buttonStyle);
+        btnRandomLevel.setStyle(buttonStyle);
+        btnMenu.setStyle(buttonStyle);
 
         btnNewGame.setOnAction(e -> {
             if (overlay != null && root.getCenter() == overlay) {
@@ -257,9 +266,9 @@ public class Main extends Application {
                 levelIndex = (levelIndex + 1) % configurations.length;
                 initialConfig = configurations[levelIndex];
                 currentConfig = initialConfig;
-                score = 0;
                 movesCount = 0;
                 elapsedTime = 0;
+                // Do not reset score to allow accumulation
                 saveGameState();
                 loadLevel();
             }
@@ -286,9 +295,9 @@ public class Main extends Application {
                 initialConfig = generateRandomConfiguration();
                 currentConfig = initialConfig;
                 levelIndex = -1;
-                score = 0;
                 movesCount = 0;
                 elapsedTime = 0;
+                // Do not reset score to allow accumulation
                 saveGameState();
                 loadLevel();
             }
@@ -310,38 +319,22 @@ public class Main extends Application {
         });
 
         btnMenu.setOnAction(e -> {
-            if (overlay != null && root.getCenter() == overlay) {
+            if (overlay != null && root.getCenter() == overlay) { 
                 removeOverlay();
             }
             saveGameState();
             primaryStage.setScene(createStartMenu());
         });
 
-        VBox centerControls = new VBox(10, btnNewGame, btnRestart, btnRandomLevel, btnMenu);
-        centerControls.setAlignment(Pos.CENTER);
-        centerControls.setPadding(new Insets(10));
-
-        HBox pauseContainer = new HBox(btnPause);
-        pauseContainer.setAlignment(Pos.TOP_LEFT);
-        pauseContainer.setPadding(new Insets(5));
-
-        BorderPane topControls = new BorderPane();
-        topControls.setLeft(pauseContainer);
-        topControls.setCenter(centerControls);
-
+        HBox topControls = new HBox(10, btnPause, btnNewGame, btnRestart, btnRandomLevel, btnMenu);
+        topControls.setAlignment(Pos.CENTER);
+        topControls.setPadding(new Insets(10));
         return topControls;
     }
 
     private void disableControlButtons() {
         if (topControls != null) {
-            VBox centerControls = (VBox) topControls.getCenter();
-            for (Node node : centerControls.getChildren()) {
-                if (node instanceof Button || node instanceof ComboBox) {
-                    node.setDisable(true);
-                }
-            }
-            HBox pauseContainer = (HBox) topControls.getLeft();
-            for (Node node : pauseContainer.getChildren()) {
+            for (Node node : topControls.getChildren()) {
                 if (node instanceof Button) {
                     node.setDisable(true);
                 }
@@ -351,14 +344,7 @@ public class Main extends Application {
 
     private void enableControlButtons() {
         if (topControls != null) {
-            VBox centerControls = (VBox) topControls.getCenter();
-            for (Node node : centerControls.getChildren()) {
-                if (node instanceof Button || node instanceof ComboBox) {
-                    node.setDisable(false);
-                }
-            }
-            HBox pauseContainer = (HBox) topControls.getLeft();
-            for (Node node : pauseContainer.getChildren()) {
+            for (Node node : topControls.getChildren()) {
                 if (node instanceof Button) {
                     node.setDisable(false);
                 }
@@ -614,11 +600,11 @@ public class Main extends Application {
         int timeBonus = Math.max(0, 500 - elapsedTime * 5);
         score += (baseScore + timeBonus);
 
-        lblScore.setText("Score: " + score);
         if (score > bestScore) {
             bestScore = score;
             lblBestScore.setText("Best: " + bestScore);
         }
+        lblScore.setText("Score: " + score);
         saveGameState();
 
         overlay = createOverlay(
@@ -630,9 +616,9 @@ public class Main extends Application {
                     levelIndex = (levelIndex + 1) % configurations.length;
                     initialConfig = configurations[levelIndex];
                     currentConfig = initialConfig;
-                    score = 0;
                     movesCount = 0;
                     elapsedTime = 0;
+                    // Do not reset score to allow accumulation across levels
                     saveGameState();
                     loadLevel();
                 }
@@ -647,11 +633,11 @@ public class Main extends Application {
 
         // Apply penalty for losing
         score = Math.max(0, score - 200);
-        lblScore.setText("Score: " + score);
         if (score > bestScore) {
             bestScore = score;
             lblBestScore.setText("Best: " + bestScore);
         }
+        lblScore.setText("Score: " + score);
         saveGameState();
 
         overlay = createOverlay(
@@ -660,10 +646,10 @@ public class Main extends Application {
                 "btn-retry",
                 () -> {
                     removeOverlay();
-                    score = 0;
                     movesCount = 0;
                     elapsedTime = 0;
                     currentConfig = initialConfig; // Reset to initial level configuration
+                    // Do not reset score to allow accumulation
                     saveGameState();
                     loadLevel();
                 }
