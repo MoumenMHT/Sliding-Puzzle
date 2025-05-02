@@ -2,6 +2,7 @@ package sample;
 
 import javafx.animation.*;
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -10,6 +11,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.Glow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -23,7 +25,7 @@ import java.util.Random;
 public class Main extends Application {
 
     private static final int GRID_SIZE = 3;
-    private static final int TILE_SIZE = 80;
+    private static final double BASE_TILE_SIZE = 80;
     private static final int MAX_MOVES = 50;
     private static final String SAVE_FILE = "game_save.dat";
 
@@ -45,7 +47,7 @@ public class Main extends Application {
     private StackPane puzzleGridPane;
     private Scene gameScene;
     private Stage primaryStage;
-    private HBox topControls; // Changed from BorderPane to HBox
+    private HBox topControls;
 
     private final String[] configurations = {
             "123864705", "073214568", "124857063", "204153876",
@@ -55,10 +57,17 @@ public class Main extends Application {
     private int movesCount = 0;
     private int score = 0;
     private int bestScore = 0;
-    private String currentConfig = configurations[0]; // Current board state
-    private String initialConfig = configurations[0]; // Initial level configuration
+    private String currentConfig = configurations[0];
+    private String initialConfig = configurations[0];
     private Timeline timer;
     private int elapsedTime = 0;
+
+    // Variables to track stage properties
+    private boolean isFullScreen = false;
+    private double windowWidth = 600;
+    private double windowHeight = 580;
+    private double windowX = -1; // -1 indicates default/centered position
+    private double windowY = -1; // -1 indicates default/centered position
 
     @Override
     public void start(Stage primaryStage) {
@@ -75,19 +84,50 @@ public class Main extends Application {
         gameScene = new Scene(root, 600, 580);
         gameScene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
 
-        // Load saved game state if available
+        primaryStage.setMinWidth(400);
+        primaryStage.setMinHeight(500);
+
         loadGameState();
 
         Scene startMenuScene = createStartMenu();
 
         primaryStage.setTitle("Sliding Puzzle Game");
-        primaryStage.setResizable(false);
         primaryStage.setScene(startMenuScene);
         primaryStage.setOnCloseRequest(e -> saveGameState());
         primaryStage.show();
+
+        // Save initial stage properties
+        saveStageProperties();
     }
 
-    // Serializable class to hold game state
+    // Helper methods to save and restore stage properties
+    private void saveStageProperties() {
+        isFullScreen = primaryStage.isFullScreen();
+        if (!isFullScreen) {
+            windowWidth = primaryStage.getWidth();
+            windowHeight = primaryStage.getHeight();
+            windowX = primaryStage.getX();
+            windowY = primaryStage.getY();
+        }
+    }
+
+    private void restoreStageProperties() {
+        primaryStage.setFullScreen(isFullScreen);
+        if (!isFullScreen) {
+            primaryStage.setWidth(windowWidth);
+            primaryStage.setHeight(windowHeight);
+            if (windowX != -1 && windowY != -1) {
+                // Basic validation to ensure window is on screen
+                if (windowX >= 0 && windowY >= 0) {
+                    primaryStage.setX(windowX);
+                    primaryStage.setY(windowY);
+                } else {
+                    primaryStage.centerOnScreen();
+                }
+            }
+        }
+    }
+
     private static class GameState implements Serializable {
         private static final long serialVersionUID = 1L;
         String currentConfig;
@@ -111,6 +151,7 @@ public class Main extends Application {
 
     private void saveGameState() {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(SAVE_FILE))) {
+            saveStageProperties();
             GameState state = new GameState(currentConfig, initialConfig, levelIndex, score, movesCount, elapsedTime, bestScore);
             oos.writeObject(state);
         } catch (IOException e) {
@@ -123,7 +164,6 @@ public class Main extends Application {
         if (saveFile.exists()) {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(saveFile))) {
                 GameState state = (GameState) ois.readObject();
-                // Validate configurations
                 if (state.currentConfig != null && state.currentConfig.length() == GRID_SIZE * GRID_SIZE &&
                     state.initialConfig != null && state.initialConfig.length() == GRID_SIZE * GRID_SIZE) {
                     currentConfig = state.currentConfig;
@@ -135,6 +175,7 @@ public class Main extends Application {
                     bestScore = state.bestScore;
                     lblScore.setText("Score: " + score);
                     lblBestScore.setText("Best: " + bestScore);
+                    restoreStageProperties();
                 }
             } catch (IOException | ClassNotFoundException e) {
                 System.err.println("Error loading game state: " + e.getMessage());
@@ -158,23 +199,27 @@ public class Main extends Application {
         btnStart.setPrefWidth(200);
         btnStart.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
         btnStart.setOnAction(e -> {
+            saveStageProperties();
             levelIndex = 0;
             initialConfig = configurations[levelIndex];
             currentConfig = initialConfig;
-            score = 0; // Reset score for new game
+            score = 0;
             movesCount = 0;
             elapsedTime = 0;
             saveGameState();
             primaryStage.setScene(gameScene);
             loadLevel();
+            restoreStageProperties();
         });
 
         Button btnContinue = new Button("Continue");
         btnContinue.setPrefWidth(200);
         btnContinue.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
         btnContinue.setOnAction(e -> {
+            saveStageProperties();
             primaryStage.setScene(gameScene);
             loadLevel();
+            restoreStageProperties();
         });
         btnContinue.setDisable(!new File(SAVE_FILE).exists() || currentConfig == null || currentConfig.length() != GRID_SIZE * GRID_SIZE);
 
@@ -182,6 +227,7 @@ public class Main extends Application {
         btnSelectLevel.setPrefWidth(200);
         btnSelectLevel.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
         btnSelectLevel.setOnAction(e -> {
+            saveStageProperties();
             VBox levelMenu = new VBox(10);
             levelMenu.setAlignment(Pos.CENTER);
             levelMenu.setStyle("-fx-background-color: linear-gradient(to bottom, #2c3e50, #34495e);");
@@ -201,24 +247,31 @@ public class Main extends Application {
             btnConfirm.setPrefWidth(200);
             btnConfirm.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;");
             btnConfirm.setOnAction(e2 -> {
+                saveStageProperties();
                 levelIndex = levelSelector.getSelectionModel().getSelectedIndex();
                 initialConfig = configurations[levelIndex];
                 currentConfig = initialConfig;
-                score = 0; // Reset score for new level selection
+                score = 0;
                 movesCount = 0;
                 elapsedTime = 0;
                 saveGameState();
                 primaryStage.setScene(gameScene);
                 loadLevel();
+                restoreStageProperties();
             });
 
             Button btnBack = new Button("Back");
             btnBack.setPrefWidth(200);
             btnBack.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 16px; -fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 5;");
-            btnBack.setOnAction(e2 -> primaryStage.setScene(createStartMenu()));
+            btnBack.setOnAction(e2 -> {
+                saveStageProperties();
+                primaryStage.setScene(createStartMenu());
+                restoreStageProperties();
+            });
 
             levelMenu.getChildren().addAll(selectTitle, levelSelector, btnConfirm, btnBack);
             primaryStage.setScene(new Scene(levelMenu, 450, 580));
+            restoreStageProperties();
         });
 
         Button btnExit = new Button("Exit");
@@ -242,49 +295,55 @@ public class Main extends Application {
         Button btnRestart = new Button("Restart");
         Button btnRandomLevel = new Button("Random Level");
         Button btnMenu = new Button("Menu");
+        Button btnFullScreen = new Button("⛶");
 
-        // Set smaller button sizes to fit all in one line
         btnPause.setPrefSize(40, 30);
         btnNewGame.setPrefSize(120, 30);
         btnRestart.setPrefSize(80, 30);
         btnRandomLevel.setPrefSize(120, 30);
         btnMenu.setPrefSize(80, 30);
+        btnFullScreen.setPrefSize(40, 30);
 
-        // Apply consistent styling
         String buttonStyle = "-fx-font-family: 'Arial'; -fx-font-size: 12px; -fx-background-color: #3498db; -fx-text-fill: white; -fx-background-radius: 5;";
         btnPause.setStyle(buttonStyle);
         btnNewGame.setStyle(buttonStyle);
         btnRestart.setStyle(buttonStyle);
         btnRandomLevel.setStyle(buttonStyle);
         btnMenu.setStyle(buttonStyle);
+        btnFullScreen.setId("btn-fullscreen");
 
         btnNewGame.setOnAction(e -> {
             if (overlay != null && root.getCenter() == overlay) {
                 removeOverlay();
             }
             if (!isWin && !isPaused) {
+                saveStageProperties();
                 levelIndex = (levelIndex + 1) % configurations.length;
                 initialConfig = configurations[levelIndex];
                 currentConfig = initialConfig;
                 movesCount = 0;
+                score = 0;
                 elapsedTime = 0;
-                // Do not reset score to allow accumulation
                 saveGameState();
                 loadLevel();
+                restoreStageProperties();
             }
         });
 
         btnRestart.setOnAction(e -> {
-            removeOverlay(); // Always clear overlay
+            removeOverlay();
             isWin = false;
             isPaused = false;
             movesCount = 0;
+            score = 0;
             elapsedTime = 0;
-            currentConfig = initialConfig; // Reset to initial level configuration
-            enableControlButtons(); // Ensure controls are enabled
-            enableTiles(); // Ensure tiles are interactive
+            currentConfig = initialConfig;
+            enableControlButtons();
+            enableTiles();
             saveGameState();
+            saveStageProperties();
             loadLevel();
+            restoreStageProperties();
         });
 
         btnRandomLevel.setOnAction(e -> {
@@ -292,14 +351,15 @@ public class Main extends Application {
                 removeOverlay();
             }
             if (!isWin && !isPaused) {
+                saveStageProperties();
                 initialConfig = generateRandomConfiguration();
                 currentConfig = initialConfig;
                 levelIndex = -1;
                 movesCount = 0;
                 elapsedTime = 0;
-                // Do not reset score to allow accumulation
                 saveGameState();
                 loadLevel();
+                restoreStageProperties();
             }
         });
 
@@ -319,14 +379,23 @@ public class Main extends Application {
         });
 
         btnMenu.setOnAction(e -> {
-            if (overlay != null && root.getCenter() == overlay) { 
+            if (overlay != null && root.getCenter() == overlay) {
                 removeOverlay();
             }
             saveGameState();
+            saveStageProperties();
             primaryStage.setScene(createStartMenu());
+            restoreStageProperties();
         });
 
-        HBox topControls = new HBox(10, btnPause, btnNewGame, btnRestart, btnRandomLevel, btnMenu);
+        btnFullScreen.setOnAction(e -> {
+            isFullScreen = !primaryStage.isFullScreen();
+            primaryStage.setFullScreen(isFullScreen);
+            btnFullScreen.setText(isFullScreen ? "🗗" : "⛶");
+            saveStageProperties();
+        });
+
+        HBox topControls = new HBox(10, btnPause, btnNewGame, btnRestart, btnRandomLevel, btnMenu, btnFullScreen);
         topControls.setAlignment(Pos.CENTER);
         topControls.setPadding(new Insets(10));
         return topControls;
@@ -381,7 +450,11 @@ public class Main extends Application {
         for (int row = 0; row < GRID_SIZE; row++) {
             for (int col = 0; col < GRID_SIZE; col++) {
                 Button tile = new Button();
-                tile.setPrefSize(TILE_SIZE, TILE_SIZE);
+                tile.prefWidthProperty().bind(Bindings.createDoubleBinding(
+                    () -> Math.min(root.widthProperty().get() - 100, root.heightProperty().get() - 200) / GRID_SIZE,
+                    root.widthProperty(), root.heightProperty()
+                ));
+                tile.prefHeightProperty().bind(tile.prefWidthProperty());
                 tile.setFont(Font.font("Arial", 18));
                 tile.setEffect(new DropShadow(5, Color.gray(0.4)));
                 final int r = row, c = col;
@@ -397,7 +470,21 @@ public class Main extends Application {
 
         puzzleGridPane = new StackPane(gridPane);
         puzzleGridPane.setPadding(new Insets(15));
+
+        // Add listener to stage size changes
+        primaryStage.widthProperty().addListener((obs, oldVal, newVal) -> updateTileSizes());
+        primaryStage.heightProperty().addListener((obs, oldVal, newVal) -> updateTileSizes());
+
         return puzzleGridPane;
+    }
+
+    private void updateTileSizes() {
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                tiles[row][col].requestLayout();
+            }
+        }
+        gridPane.requestLayout();
     }
 
     private void disableTiles() {
@@ -430,11 +517,12 @@ public class Main extends Application {
         stopTimer();
         removeOverlay();
         applyConfiguration(currentConfig);
-        enableTiles(); // Ensure tiles are enabled
-        enableControlButtons(); // Ensure controls are enabled
+        enableTiles();
+        enableControlButtons();
         if (!isPaused && !isWin) {
             startTimer();
         }
+        restoreStageProperties();
     }
 
     private void applyConfiguration(String config) {
@@ -515,38 +603,73 @@ public class Main extends Application {
         Button from = tiles[r1][c1];
         Button to = tiles[r2][c2];
 
-        TranslateTransition tt = new TranslateTransition(Duration.millis(150), from);
-        ScaleTransition st = new ScaleTransition(Duration.millis(150), from);
-        FadeTransition ft = new FadeTransition(Duration.millis(150), from);
+        // Bring the moving tile to the front
+        from.toFront();
 
-        tt.setByX((c2 - c1) * (TILE_SIZE + 8));
-        tt.setByY((r2 - r1) * (TILE_SIZE + 8));
-        tt.setInterpolator(Interpolator.EASE_BOTH);
+        // Animation setup
+        TranslateTransition tt = new TranslateTransition(Duration.millis(200), from);
+        ScaleTransition st = new ScaleTransition(Duration.millis(200), from);
+        FadeTransition ft = new FadeTransition(Duration.millis(200), from);
+        RotateTransition rt = new RotateTransition(Duration.millis(200), from);
+        Glow glow = new Glow(0.8);
+        Timeline glowTimeline = new Timeline(
+            new KeyFrame(Duration.ZERO, new KeyValue(glow.levelProperty(), 0.8)),
+            new KeyFrame(Duration.millis(100), new KeyValue(glow.levelProperty(), 0.2)),
+            new KeyFrame(Duration.millis(200), new KeyValue(glow.levelProperty(), 0))
+        );
 
-        st.setToX(1.05);
-        st.setToY(1.05);
+        // Configure translations
+        double tileSize = tiles[0][0].getWidth();
+        tt.setByX((c2 - c1) * (tileSize + 8));
+        tt.setByY((r2 - r1) * (tileSize + 8));
+        tt.setInterpolator(Interpolator.SPLINE(0.1, 0.1, 0.25, 1.0));
+
+        // Configure scale (more pronounced)
+        st.setToX(1.1);
+        st.setToY(1.1);
         st.setCycleCount(2);
         st.setAutoReverse(true);
         st.setInterpolator(Interpolator.EASE_BOTH);
 
+        // Configure fade (unchanged)
         ft.setFromValue(1.0);
         ft.setToValue(0.7);
         ft.setCycleCount(2);
-        ft.setAutoReverse(true);
+        st.setAutoReverse(true);
         ft.setInterpolator(Interpolator.EASE_BOTH);
 
-        ParallelTransition pt = new ParallelTransition(tt, st, ft);
-        pt.setOnFinished(e -> {
+        // Configure rotation (subtle flip)
+        rt.setByAngle(15);
+        rt.setCycleCount(2);
+        rt.setAutoReverse(true);
+        rt.setInterpolator(Interpolator.SPLINE(0.1, 0.1, 0.25, 1.0));
+
+        // Apply glow effect
+        from.setEffect(glow);
+
+        // Combine animations
+        ParallelTransition highlight = new ParallelTransition(st, ft, glowTimeline);
+        ParallelTransition move = new ParallelTransition(tt, rt);
+        SequentialTransition animation = new SequentialTransition(highlight, move);
+
+        // Handle completion
+        animation.setOnFinished(e -> {
+            // Reset transformations and effects
             from.setTranslateX(0);
             from.setTranslateY(0);
+            from.setRotate(0);
             from.setOpacity(1.0);
+            from.setEffect(new DropShadow(5, Color.gray(0.4))); // Restore original effect
+
+            // Swap tile content
             to.setText(from.getText());
             to.setId("tile");
             from.setText("");
             from.setId("empty-tile");
 
+            // Update game state
             movesCount++;
-            score += 10; // Increase score by 10 per move
+            score += 10;
             lblMoves.setText("Moves: " + movesCount);
             lblMovesLeft.setText("Moves Left: " + (MAX_MOVES - movesCount));
             lblScore.setText("Score: " + score);
@@ -555,7 +678,6 @@ public class Main extends Application {
                 lblBestScore.setText("Best: " + bestScore);
             }
 
-            // Update currentConfig to reflect the new board state
             StringBuilder newConfig = new StringBuilder();
             for (int i = 0; i < GRID_SIZE; i++) {
                 for (int j = 0; j < GRID_SIZE; j++) {
@@ -569,7 +691,8 @@ public class Main extends Application {
             if (checkWin()) showWinDialog();
             else if (movesCount >= MAX_MOVES) showLoseDialog();
         });
-        pt.play();
+
+        animation.play();
     }
 
     private boolean checkWin() {
@@ -595,7 +718,6 @@ public class Main extends Application {
         stopTimer();
         disableControlButtons();
 
-        // Calculate score: base + time bonus
         int baseScore = 1000;
         int timeBonus = Math.max(0, 500 - elapsedTime * 5);
         score += (baseScore + timeBonus);
@@ -607,6 +729,7 @@ public class Main extends Application {
         lblScore.setText("Score: " + score);
         saveGameState();
 
+        saveStageProperties();
         overlay = createOverlay(
                 "\uD83C\uDFC6 You Win in " + elapsedTime + "s!\nScore: " + (baseScore + timeBonus),
                 "Next Level",
@@ -618,20 +741,20 @@ public class Main extends Application {
                     currentConfig = initialConfig;
                     movesCount = 0;
                     elapsedTime = 0;
-                    // Do not reset score to allow accumulation across levels
                     saveGameState();
                     loadLevel();
+                    restoreStageProperties();
                 }
         );
         BorderPane.setAlignment(overlay, Pos.CENTER);
         root.setCenter(overlay);
+        restoreStageProperties();
     }
 
     private void showLoseDialog() {
         stopTimer();
         disableControlButtons();
 
-        // Apply penalty for losing
         score = Math.max(0, score - 200);
         if (score > bestScore) {
             bestScore = score;
@@ -640,6 +763,7 @@ public class Main extends Application {
         lblScore.setText("Score: " + score);
         saveGameState();
 
+        saveStageProperties();
         overlay = createOverlay(
                 "\uD83D\uDC80 Game Over!",
                 "Retry Level",
@@ -648,14 +772,15 @@ public class Main extends Application {
                     removeOverlay();
                     movesCount = 0;
                     elapsedTime = 0;
-                    currentConfig = initialConfig; // Reset to initial level configuration
-                    // Do not reset score to allow accumulation
+                    currentConfig = initialConfig;
                     saveGameState();
                     loadLevel();
+                    restoreStageProperties();
                 }
         );
         BorderPane.setAlignment(overlay, Pos.CENTER);
         root.setCenter(overlay);
+        restoreStageProperties();
     }
 
     private void removeOverlay() {
@@ -669,7 +794,8 @@ public class Main extends Application {
     private StackPane createOverlay(String message, String buttonText, String buttonId, Runnable action) {
         Region background = new Region();
         background.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7);");
-        background.setPrefSize(450, 580);
+        background.prefWidthProperty().bind(root.widthProperty());
+        background.prefHeightProperty().bind(root.heightProperty());
 
         Label label = new Label(message);
         label.setStyle("-fx-font-family: 'Arial'; -fx-font-size: 18px; -fx-text-fill: white;");
