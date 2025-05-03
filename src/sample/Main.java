@@ -32,6 +32,7 @@ public class Main extends Application {
     private static int levelIndex = 0;
     private static boolean isWin = false;
     private boolean isPaused = false;
+    private boolean isAnimating = false; // Added to prevent overlapping animations
 
     private final Label lblMoves = new Label("Moves: 0");
     private final Label lblScore = new Label("Score: 0");
@@ -583,7 +584,7 @@ public class Main extends Application {
     }
 
     private void attemptMove(int row, int col) {
-        if (isWin || isPaused || movesCount >= MAX_MOVES) return;
+        if (isWin || isPaused || movesCount >= MAX_MOVES || isAnimating) return;
 
         if (canMoveTo(row - 1, col)) swapTiles(row, col, row - 1, col);
         else if (canMoveTo(row + 1, col)) swapTiles(row, col, row + 1, col);
@@ -600,6 +601,7 @@ public class Main extends Application {
     }
 
     private void swapTiles(int r1, int c1, int r2, int c2) {
+        isAnimating = true; // Prevent new moves during animation
         Button from = tiles[r1][c1];
         Button to = tiles[r2][c2];
 
@@ -608,57 +610,40 @@ public class Main extends Application {
 
         // Animation setup
         TranslateTransition tt = new TranslateTransition(Duration.millis(200), from);
-        ScaleTransition st = new ScaleTransition(Duration.millis(200), from);
-        FadeTransition ft = new FadeTransition(Duration.millis(200), from);
-        RotateTransition rt = new RotateTransition(Duration.millis(200), from);
+        ScaleTransition st = new ScaleTransition(Duration.millis(100), from);
         Glow glow = new Glow(0.8);
         Timeline glowTimeline = new Timeline(
             new KeyFrame(Duration.ZERO, new KeyValue(glow.levelProperty(), 0.8)),
-            new KeyFrame(Duration.millis(100), new KeyValue(glow.levelProperty(), 0.2)),
-            new KeyFrame(Duration.millis(200), new KeyValue(glow.levelProperty(), 0))
+            new KeyFrame(Duration.millis(100), new KeyValue(glow.levelProperty(), 0))
         );
 
-        // Configure translations
+        // Configure translation
         double tileSize = tiles[0][0].getWidth();
         tt.setByX((c2 - c1) * (tileSize + 8));
         tt.setByY((r2 - r1) * (tileSize + 8));
-        tt.setInterpolator(Interpolator.SPLINE(0.1, 0.1, 0.25, 1.0));
+        tt.setInterpolator(Interpolator.EASE_BOTH);
 
-        // Configure scale (more pronounced)
-        st.setToX(1.1);
-        st.setToY(1.1);
+        // Configure scale
+        st.setToX(1.15);
+        st.setToY(1.15);
         st.setCycleCount(2);
         st.setAutoReverse(true);
         st.setInterpolator(Interpolator.EASE_BOTH);
-
-        // Configure fade (unchanged)
-        ft.setFromValue(1.0);
-        ft.setToValue(0.7);
-        ft.setCycleCount(2);
-        st.setAutoReverse(true);
-        ft.setInterpolator(Interpolator.EASE_BOTH);
-
-        // Configure rotation (subtle flip)
-        rt.setByAngle(15);
-        rt.setCycleCount(2);
-        rt.setAutoReverse(true);
-        rt.setInterpolator(Interpolator.SPLINE(0.1, 0.1, 0.25, 1.0));
 
         // Apply glow effect
         from.setEffect(glow);
 
         // Combine animations
-        ParallelTransition highlight = new ParallelTransition(st, ft, glowTimeline);
-        ParallelTransition move = new ParallelTransition(tt, rt);
-        SequentialTransition animation = new SequentialTransition(highlight, move);
+        ParallelTransition highlight = new ParallelTransition(st, glowTimeline);
+        SequentialTransition animation = new SequentialTransition(highlight, tt);
 
         // Handle completion
         animation.setOnFinished(e -> {
             // Reset transformations and effects
             from.setTranslateX(0);
             from.setTranslateY(0);
-            from.setRotate(0);
-            from.setOpacity(1.0);
+            from.setScaleX(1.0);
+            from.setScaleY(1.0);
             from.setEffect(new DropShadow(5, Color.gray(0.4))); // Restore original effect
 
             // Swap tile content
@@ -687,6 +672,8 @@ public class Main extends Application {
             }
             currentConfig = newConfig.toString();
             saveGameState();
+
+            isAnimating = false; // Allow new moves
 
             if (checkWin()) showWinDialog();
             else if (movesCount >= MAX_MOVES) showLoseDialog();
