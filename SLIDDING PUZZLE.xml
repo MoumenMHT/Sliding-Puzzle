@@ -3,7 +3,7 @@
   <dontWrapJar>false</dontWrapJar>
   <headerType>gui</headerType>
   <jar>C:\Users\issam\Desktop\Sliding-Puzzle-master\Sliding Puzzle\mygame.jar</jar>
-  <outfile>C:\Users\issam\Desktop\Sliding-Puzzle-master\Sliding Puzzle\Sliding puzzle.exe</outfile>
+  <outfile>C:\Users\issam\Desktop\Sliding-Puzzle-master\Sliding Puzzle\sliding puzzle.exe</outfile>
   <errTitle></errTitle>
   <cmdLine></cmdLine>
   <chdir>.</chdir>

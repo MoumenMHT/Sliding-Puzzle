@@ -114,6 +114,9 @@ public class Main extends Application {
 
     private void restoreStageProperties() {
         primaryStage.setFullScreen(isFullScreen);
+        if (isFullScreen) {
+            primaryStage.setFullScreenExitHint(""); // Suppress full-screen exit message
+        }
         if (!isFullScreen) {
             primaryStage.setWidth(windowWidth);
             primaryStage.setHeight(windowHeight);
@@ -392,6 +395,7 @@ public class Main extends Application {
         btnFullScreen.setOnAction(e -> {
             isFullScreen = !primaryStage.isFullScreen();
             primaryStage.setFullScreen(isFullScreen);
+            primaryStage.setFullScreenExitHint(""); // Suppress full-screen exit message
             btnFullScreen.setText(isFullScreen ? "🗗" : "⛶");
             saveStageProperties();
         });
@@ -707,7 +711,7 @@ public class Main extends Application {
 
         int baseScore = 1000;
         int timeBonus = Math.max(0, 500 - elapsedTime * 5);
-        score += (baseScore + timeBonus);
+        score += (baseScore + timeBonus - 10);
 
         if (score > bestScore) {
             bestScore = score;
